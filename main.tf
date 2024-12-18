@@ -6,7 +6,7 @@ terraform {
     }
     proxmox = {
       source = "Telmate/proxmox"
-      version = "3.0.1-rc6"
+      version = "3.0.1-rc4"
     }
   }
   required_version = ">= 1.0"
@@ -42,11 +42,16 @@ provider "proxmox" {
 }
 
 resource "proxmox_lxc" "cloudflared_container" {
-  target_node  = "proxmox-01"                            # Replace with your Proxmox node name
-  vmid         = 101                                     # Container ID
+  target_node  = "proxmox-01"
+  vmid         = 101
   hostname     = "cloudflared"
   password     = var.cloudflared_container_root_password # Variable for container root password
   ostemplate   = "local:vztmpl/ubuntu-24.04-standard_24.04-2_amd64.tar.zst"
+
+  features {
+    nesting = true
+  }
+
   rootfs {
     storage = "local-lvm"
     size    = "8G"
@@ -59,14 +64,13 @@ resource "proxmox_lxc" "cloudflared_container" {
   ssh_public_keys = file("~/.ssh/id_rsa_cloudflared_admin.pub")
 
   network {
-    name      = "eth0"
-    hwaddr    = "02:00:C0:A8:02:65"
-    bridge    = "vmbr0"               # Replace with your network bridge name
-    ip        = "dhcp"
-    ip6       = "dhcp"
+    name   = "eth0"
+    hwaddr = "02:00:C0:A8:02:65"
+    bridge = "vmbr0"
+    ip     = "dhcp"
   }
 
-  start = true   # Start the container after creation
+  start = true
 
   lifecycle {
     ignore_changes = [network]
