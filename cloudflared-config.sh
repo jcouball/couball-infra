@@ -40,10 +40,10 @@ logfile: /var/log/cloudflared.log
 loglevel: info
 
 ingress:
-  - hostname: www.couball.dev
-    service: http://192.168.2.102:8080
+  - hostname: ${hello_world_domain}
+    service:  ${hello_world_internal_address}
   - hostname: "*"
-    service: "http_status:404"
+    service:  "http_status:404"
 EOF
 
 if systemctl is-active --quiet cloudflared; then

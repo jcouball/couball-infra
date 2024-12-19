@@ -1,0 +1,50 @@
+#!/bin/bash
+
+CONTAINER_ID=$1
+MAX_RETRIES=${2:-30}
+RETRY_WAIT_TIME=${3:-0.5}
+
+# Function to check container status
+# Outputs: "running", "stopped", or nothing if container does not exist
+get_container_status() {
+  local container_id=$1
+  pct status "$container_id" 2>/dev/null | awk '{print $2}'
+}
+
+wait_for_container() {
+  local container_id=$1
+  local status=$(get_container_status $container_id)
+  if [ -z "$status" ]; then
+    echo "ERROR: Container $container_id does not exist."
+    return 1
+  fi
+
+  if [ "$status" = "running" ]; then
+    return 0
+  fi
+
+  echo -n "Waiting for container $container_id to start..."  >&2
+  for i in $(seq 1 $MAX_RETRIES); do
+    sleep $RETRY_WAIT_TIME
+    if [ "$(get_container_status $container_id)" = "running" ]; then
+      echo "the wait is over." >&2
+      return 0
+    fi
+    echo -n "." >&2
+  done
+
+  echo "ERROR: Container $container_id did not start in time." >&2
+  return 1
+}
+
+if ! command -v pct &>/dev/null; then
+  echo "ERROR: 'pct' command not found. Please ensure it is installed." >&2
+  exit 1
+fi
+
+if wait_for_container $CONTAINER_ID; then
+  IP=$(pct exec "$CONTAINER_ID" -- ip addr show eth0 | grep 'inet ' | awk '{print $2}' | cut -d/ -f1)
+  echo "{\"ip\": \"$IP\"}"
+else
+  exit 1
+fi

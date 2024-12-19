@@ -13,9 +13,10 @@ variable "cloudflare_zone_id" {
   type        = string
 }
 
-variable "cloudflare_zone_name" {
-  description = "The domain"
+variable "hello_world_domain" {
+  description = "The domain of the hello world app"
   type        = string
+  default = "www.couball.dev"
 }
 
 variable "tunnel_secret" {
@@ -33,4 +34,9 @@ variable "cloudflared_container_root_password" {
   description = "Root password for the cloudflared container"
   type        = string
   sensitive   = true
+}
+
+variable "proxmox_ip" {
+  description = "The IP address of the Proxmox host"
+  default     = "192.168.2.1"
 }

@@ -25,9 +25,9 @@ resource "cloudflare_zero_trust_tunnel_cloudflared" "couball_tunnel" {
   config_src = "local"
 }
 
-resource "cloudflare_record" "couball_tunnel_record" {
+resource "cloudflare_record" "hello_world" {
   zone_id         = var.cloudflare_zone_id
-  name            = var.cloudflare_zone_name
+  name            = var.hello_world_domain
   type            = "CNAME"
   content         = "${cloudflare_zero_trust_tunnel_cloudflared.couball_tunnel.id}.cfargotunnel.com"
   proxied         = true
@@ -35,10 +35,10 @@ resource "cloudflare_record" "couball_tunnel_record" {
 }
 
 provider "proxmox" {
-  pm_api_url      = "https://192.168.2.1:8006/api2/json"  # Adjust port if necessary
-  pm_user         = "root@pam"                           # Update with your Proxmox credentials
-  pm_password     = var.proxmox_root_password            # Variable for Proxmox root password
-  pm_tls_insecure = true                                 # Use true if self-signed certs are used
+  pm_api_url      = "https://${var.proxmox_ip}:8006/api2/json"
+  pm_user         = "root@pam"
+  pm_password     = var.proxmox_root_password
+  pm_tls_insecure = true
 }
 
 resource "proxmox_lxc" "cloudflared_container" {
@@ -77,22 +77,41 @@ resource "proxmox_lxc" "cloudflared_container" {
   }
 }
 
+data "external" "get_cloudflared_ip" {
+  program = ["bash", "${path.module}/get_ip", var.proxmox_ip, proxmox_lxc.cloudflared_container.vmid]
+
+  depends_on = [
+    proxmox_lxc.cloudflared_container
+  ]
+}
+
+output "cloudflared_ip" {
+  value       = data.external.get_cloudflared_ip.result.ip
+  description = "The dynamic IP address of the cloudflared container assigned via DHCP"
+}
+
 locals {
   cloudflared_script = templatefile("${path.module}/cloudflared-config.sh", {
-    account_id    = var.cloudflare_account_id
-    tunnel_id     = cloudflare_zero_trust_tunnel_cloudflared.couball_tunnel.id
-    tunnel_name   = cloudflare_zero_trust_tunnel_cloudflared.couball_tunnel.name
-    tunnel_secret = var.tunnel_secret
+    account_id                   = var.cloudflare_account_id
+    tunnel_id                    = cloudflare_zero_trust_tunnel_cloudflared.couball_tunnel.id
+    tunnel_name                  = cloudflare_zero_trust_tunnel_cloudflared.couball_tunnel.name
+    tunnel_secret                = var.tunnel_secret
+    hello_world_domain           = var.hello_world_domain
+    hello_world_internal_address = "http://192.168.2.102:8080"
   })
 }
 
 resource "null_resource" "run_cloudflared_config_script" {
-  depends_on = [proxmox_lxc.cloudflared_container]
+  depends_on = [data.external.get_cloudflared_ip]
+
+  triggers = {
+    script_checksum = filesha256("${path.module}/cloudflared-config.sh")
+  }
 
   provisioner "remote-exec" {
     connection {
       type        = "ssh"
-      host        = "192.168.2.101" # TODO: query the IP address of the container instead of hardcoding
+      host        = data.external.get_cloudflared_ip.result.ip
       user        = "root"
       private_key = file("~/.ssh/id_rsa_cloudflared_admin")
     }

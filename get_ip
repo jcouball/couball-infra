@@ -1,0 +1,19 @@
+#!/bin/bash
+proxmox_ip=$1
+container_id=$2
+
+stage_remote_script() {
+  local proxmox_ip=$1
+
+  if ! scp -o ConnectTimeout=1 remote_get_ip root@${proxmox_ip}:. > /dev/null 2>&1; then
+    echo "ERROR: Could not copy script to proxmox node at $proxmox_ip." >&2
+    return 1
+  fi
+  return 0
+}
+
+if stage_remote_script $proxmox_ip; then
+  ssh -i ~/.ssh/id_rsa_cloudflared_admin root@${proxmox_ip} "./remote_get_ip $container_id"
+else
+  exit 1
+fi
